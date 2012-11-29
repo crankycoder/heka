@@ -22,7 +22,6 @@ import (
 	ts "heka/testsupport"
 	"io/ioutil"
 	"os"
-	mocks "heka/pipeline/mocks"
 	"runtime"
 	"time"
 )
@@ -171,7 +170,7 @@ func StatsdOutputsSpec(c gs.Context) {
 		// Setup of the pipelinePack in here
 		pipelinePack := getIncrPipelinePack()
 
-		mockClient := mocks.NewMockStatsdClient(ctrl)
+		mockClient := ts.NewMockStatsdClient(ctrl)
 		mockClient.EXPECT().IncrementSampledCounter("myname", -1, float32(30))
 		statsdOutput := StatsdOutput{statsdClient: mockClient}
 		statsdOutput.Deliver(pipelinePack)
@@ -187,7 +186,7 @@ func StatsdOutputsSpec(c gs.Context) {
 
 		pipelinePack.Message.Fields["rate"] = nil
 
-		mockClient := mocks.NewMockStatsdClient(ctrl)
+		mockClient := ts.NewMockStatsdClient(ctrl)
 		statsdOutput := StatsdOutput{statsdClient: mockClient}
 		statsdOutput.Deliver(pipelinePack)
 
@@ -206,7 +205,7 @@ func StatsdOutputsSpec(c gs.Context) {
 
 		pipelinePack.Message.Fields["name"] = nil
 
-		mockClient := mocks.NewMockStatsdClient(ctrl)
+		mockClient := ts.NewMockStatsdClient(ctrl)
 		statsdOutput := StatsdOutput{statsdClient: mockClient}
 		statsdOutput.Deliver(pipelinePack)
 
@@ -226,7 +225,7 @@ func StatsdOutputsSpec(c gs.Context) {
 		// Clear the Fields map, let gc clean it up
 		pipelinePack.Message.Fields = make(map[string]interface{})
 
-		mockClient := mocks.NewMockStatsdClient(ctrl)
+		mockClient := ts.NewMockStatsdClient(ctrl)
 		statsdOutput := StatsdOutput{statsdClient: mockClient}
 		statsdOutput.Deliver(pipelinePack)
 
@@ -244,7 +243,7 @@ func StatsdOutputsSpec(c gs.Context) {
 
 		pipelinePack.Message.Type = "garbage"
 
-		mockClient := mocks.NewMockStatsdClient(ctrl)
+		mockClient := ts.NewMockStatsdClient(ctrl)
 		statsdOutput := StatsdOutput{statsdClient: mockClient}
 		statsdOutput.Deliver(pipelinePack)
 
