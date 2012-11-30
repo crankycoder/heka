@@ -16,16 +16,16 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/crankycoder/g2s"
 	"github.com/rafrombrc/go-notify"
 	"log"
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
-    "strings"
-    "strconv"
-	"github.com/crankycoder/g2s"
 )
 
 type Output interface {
@@ -206,8 +206,8 @@ type FileOutput struct {
 	prefix_ts   bool
 }
 
-type StatsdOutputConfig struct { 
-    Url string
+type StatsdOutputConfig struct {
+	Url string
 }
 
 type FileOutputConfig struct {
@@ -272,7 +272,6 @@ func (self *FileOutput) Deliver(pack *PipelinePack) {
 	self.outputBytes = append(self.outputBytes, NEWLINE)
 	self.dataChan <- self.outputBytes
 }
-
 
 // Interface that all statsd clients must implement.
 type StatsdClient interface {
