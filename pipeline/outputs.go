@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"github.com/crankycoder/g2s"
 	"github.com/rafrombrc/go-notify"
+	. "heka/message"
 	"log"
 	"os"
 	"runtime"
@@ -285,7 +286,8 @@ type StatsdOutput struct {
 	/* The variables below are used when decoding the ns, key, value
 	 * and rate from the pipelinepack
 	 */
-	ns string
+	msg *Message
+	ns  string
 
 	key    string
 	key_ok bool
@@ -321,12 +323,12 @@ func (self *StatsdOutput) Init(config interface{}) error {
 
 func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 
-	msg := pipelinePack.Message
+	self.msg = pipelinePack.Message
 
 	// we need the ns for the full key
-	self.ns = msg.Logger
+	self.ns = self.msg.Logger
 
-	self.key, self.key_ok = msg.Fields["name"].(string)
+	self.key, self.key_ok = self.msg.Fields["name"].(string)
 	if self.key_ok == false {
 		log.Printf("Error parsing key for statsd from msg.Fields[\"name\"]")
 		return
@@ -337,7 +339,7 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 		self.key = strings.Join(s, ".")
 	}
 
-	self.tmp_value, self.value_ok = strconv.ParseInt(msg.Payload, 10, 32)
+	self.tmp_value, self.value_ok = strconv.ParseInt(self.msg.Payload, 10, 32)
 	if self.value_ok != nil {
 		log.Printf("Error parsing value for statsd")
 		return
@@ -345,7 +347,7 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 	// Downcast this
 	self.value = int(self.tmp_value)
 
-	self.tmp_rate, self.rate_ok = msg.Fields["rate"].(float64)
+	self.tmp_rate, self.rate_ok = self.msg.Fields["rate"].(float64)
 	if self.rate_ok == false {
 		log.Printf("Error parsing key for statsd from msg.Fields[\"rate\"]")
 		return
@@ -353,7 +355,7 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 
 	self.rate = float32(self.tmp_rate)
 
-	switch msg.Type {
+	switch self.msg.Type {
 	case "counter":
 		self.statsdClient.IncrementSampledCounter(self.key, self.value, self.rate)
 	case "timer":
