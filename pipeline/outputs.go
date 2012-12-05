@@ -135,7 +135,7 @@ type OutputWriter interface {
 type WriteRunner struct {
 	DataChan     chan interface{}
 	RecycleChan  chan interface{}
-	outputWriter OutputWriter
+	TheOutputWriter OutputWriter
 }
 
 func NewWriteRunner(outputWriter OutputWriter) *WriteRunner {
@@ -162,13 +162,13 @@ writeLoop:
 		runtime.Gosched()
 		select {
 		case outputData = <-self.DataChan:
-			err = self.outputWriter.Write(outputData)
+			err = self.TheOutputWriter.Write(outputData)
 			if err != nil {
 				log.Println("OutputWriter error: ", err)
 			}
 			self.RecycleChan <- outputData
 		case <-stopChan:
-			self.outputWriter.Stop()
+			self.TheOutputWriter.Stop()
 			break writeLoop
 		}
 	}
