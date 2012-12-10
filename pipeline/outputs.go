@@ -123,22 +123,30 @@ func counterLoop() {
 	}
 }
 
+// Interface for objects that manage a resource (e.g. file handle, network
+// connection) that is to be shared by all of the copies of a specific output
+// plugin.
 type OutputWriter interface {
 	MakeOutputData() interface{}
 	Write(outputData interface{}) error
 	Stop()
 }
 
+type WriteRunner interface {
+	RetrieveDataObject() interface{}
+	SendOutputData(outputData interface{})
+}
+
 // Wrapper object that launches initializes communication channels and starts
 // a goroutine for cases where a single output mechanism needs to be shared by
 // all of the separate output plugin instances.
-type WriteRunner struct {
-	DataChan     chan interface{}
-	RecycleChan  chan interface{}
-	TheOutputWriter OutputWriter
+type ChanWriteRunner struct {
+	dataChan     chan interface{}
+	recycleChan  chan interface{}
+	outputWriter OutputWriter
 }
 
-func NewWriteRunner(outputWriter OutputWriter) *WriteRunner {
+func NewWriteRunner(outputWriter OutputWriter) WriteRunner {
 	dataChan := make(chan interface{}, 2*PoolSize)
 	recycleChan := make(chan interface{}, 2*PoolSize)
 
@@ -146,12 +154,20 @@ func NewWriteRunner(outputWriter OutputWriter) *WriteRunner {
 	for i := 0; i < 2*PoolSize; i++ {
 		recycleChan <- outputWriter.MakeOutputData()
 	}
-	self := &WriteRunner{dataChan, recycleChan, outputWriter}
+	self := &ChanWriteRunner{dataChan, recycleChan, outputWriter}
 	go self.writeLoop()
 	return self
 }
 
-func (self *WriteRunner) writeLoop() {
+func (self *ChanWriteRunner) RetrieveDataObject() interface{} {
+	return <-self.recycleChan
+}
+
+func (self *ChanWriteRunner) SendOutputData(outputData interface{}) {
+	self.dataChan <- outputData
+}
+
+func (self *ChanWriteRunner) writeLoop() {
 	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
 	var outputData interface{}
@@ -161,14 +177,14 @@ writeLoop:
 		// Yielding before a channel select improves scheduler performance
 		runtime.Gosched()
 		select {
-		case outputData = <-self.DataChan:
-			err = self.TheOutputWriter.Write(outputData)
+		case outputData = <-self.dataChan:
+			err = self.outputWriter.Write(outputData)
 			if err != nil {
 				log.Println("OutputWriter error: ", err)
 			}
-			self.RecycleChan <- outputData
+			self.recycleChan <- outputData
 		case <-stopChan:
-			self.TheOutputWriter.Stop()
+			self.outputWriter.Stop()
 			break writeLoop
 		}
 	}
@@ -178,8 +194,6 @@ type FileOutputWriter struct {
 	path        string
 	file        *os.File
 	outputBytes []byte
-	err         error
-	n           int
 	ticker      *time.Ticker
 }
 
@@ -205,17 +219,16 @@ func (self *FileOutputWriter) MakeOutputData() interface{} {
 	return make([]byte, 0, 2000)
 }
 
-func (self *FileOutputWriter) Write(outputData interface{}) error {
+func (self *FileOutputWriter) Write(outputData interface{}) (err error) {
 	self.outputBytes = outputData.([]byte)
-	self.n, self.err = self.file.Write(self.outputBytes)
-	self.outputBytes = self.outputBytes[:0]
-	if self.err != nil {
-		return fmt.Errorf("FileOutput error writing to %s: %s", self.path,
-			self.err)
-	} else if self.n != len(self.outputBytes) {
-		return fmt.Errorf("FileOutput truncated output for %s", self.path)
+	n, err := self.file.Write(self.outputBytes)
+	if err != nil {
+		err = fmt.Errorf("FileOutput error writing to %s: %s", self.path, err)
+	} else if n != len(self.outputBytes) {
+		err = fmt.Errorf("FileOutput truncated output for %s", self.path)
 	}
-	return nil
+	self.outputBytes = self.outputBytes[:0]
+	return err
 }
 
 func (self *FileOutputWriter) Stop() {
@@ -224,7 +237,7 @@ func (self *FileOutputWriter) Stop() {
 }
 
 var (
-	FileWriteRunners = make(map[string]*WriteRunner)
+	FileWriteRunners = make(map[string]WriteRunner)
 
 	FILEFORMATS = map[string]bool{
 		"json": true,
@@ -239,7 +252,7 @@ const NEWLINE byte = 10
 // FileOutput formats the output and then hands it off to the dataChan so the
 // FileWriter can do its thing.
 type FileOutput struct {
-	writeRunner *WriteRunner
+	writeRunner WriteRunner
 	outputBytes []byte
 	path        string
 	format      string
@@ -286,7 +299,7 @@ func (self *FileOutput) Init(config interface{}) error {
 }
 
 func (self *FileOutput) Deliver(pack *PipelinePack) {
-	self.outputBytes = (<-self.writeRunner.RecycleChan).([]byte)
+	self.outputBytes = self.writeRunner.RetrieveDataObject().([]byte)
 	if self.prefix_ts {
 		ts := time.Now().Format(TSFORMAT)
 		self.outputBytes = append(self.outputBytes, ts...)
@@ -304,5 +317,5 @@ func (self *FileOutput) Deliver(pack *PipelinePack) {
 		self.outputBytes = append(self.outputBytes, pack.Message.Payload...)
 	}
 	self.outputBytes = append(self.outputBytes, NEWLINE)
-	self.writeRunner.DataChan <- self.outputBytes
+	self.writeRunner.SendOutputData(self.outputBytes)
 }

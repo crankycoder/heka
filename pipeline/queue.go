@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"errors"
-	"fmt"
 )
 
 type Queue struct {
@@ -42,4 +41,3 @@ func (self *Queue) nextItem() (interface{}, error) {
 	}
 	return nil, errors.New("This is unreachable")
 }
-
