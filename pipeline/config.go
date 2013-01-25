@@ -120,6 +120,16 @@ func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 	return
 }
 
+func safe_configstruct(hasConfigStruct HasConfigStruct) (configStruct interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Error invoking ConfigStruct() on [%s]: %s", hasConfigStruct, r)
+		}
+	}()
+	configStruct = hasConfigStruct.ConfigStruct()
+	return configStruct, err
+}
+
 // If `configable` supports the `HasConfigStruct` interface this will use said
 // interface to fetch a config struct object and populate it w/ the values in
 // provided `config`. If not, simply returns `config` unchanged.
@@ -133,7 +143,12 @@ func LoadConfigStruct(config *PluginConfig, configable interface{}) (interface{}
 	if err != nil {
 		return nil, errors.New("Unable to marshal: " + err.Error())
 	}
-	configStruct := hasConfigStruct.ConfigStruct()
+
+	configStruct, err := safe_configstruct(hasConfigStruct)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to invoke ConfigStruct() on [%s]: %s", hasConfigStruct, err)
+	}
+
 	err = json.Unmarshal(data, configStruct)
 	if err != nil {
 		return nil, errors.New("Unable to unmarshal: " + err.Error())
@@ -181,7 +196,7 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 		}
 
 		if _, err = wrapper.CreateWithError(); err != nil {
-			return config, errors.New("Unable to plugin init: " + err.Error())
+			return config, errors.New("Unable to create plugin: " + err.Error())
 		}
 
 		config[wrapper.name] = wrapper

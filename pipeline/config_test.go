@@ -73,7 +73,7 @@ func LoadFromConfigSpec(c gs.Context) {
 		c.Specify("explodes w/ bad config file", func() {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_test.json")
 			c.Assume(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), ts.StringContains, "Unable to plugin init: Resolve")
+			c.Expect(err.Error(), ts.StringContains, "Unable to create plugin: ResolveUDPAddr failed: missing port in address 1000")
 		})
 
 		c.Specify("handles missing config file correctly", func() {
