@@ -47,6 +47,16 @@ type InputRunner struct {
 	timeout *time.Duration
 }
 
+func (self *InputRunner) safe_read(pack *PipelinePack) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Input plugin [%s] panic during Read(): %s", self.input, r)
+		}
+	}()
+	err = self.input.Read(pack, self.timeout)
+	return err
+}
+
 func (self *InputRunner) Start(pipeline func(*PipelinePack),
 	recycleChan <-chan *PipelinePack, wg *sync.WaitGroup) {
 
@@ -68,7 +78,8 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 				}
 			}
 
-			err = self.input.Read(pack, self.timeout)
+			err = self.safe_read(pack)
+
 			if err != nil {
 				select {
 				case <-stopChan:
