@@ -16,6 +16,7 @@ package pipeline
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	. "github.com/mozilla-services/heka/message"
 	"os"
 )
@@ -101,16 +102,14 @@ type PluginWrapper struct {
 	global        PluginGlobal
 }
 
-// Create a new instance of the plugin and return it
-//
-// Errors are ignored. Call with CreateWithError if an error is needed
-func (self *PluginWrapper) Create() (plugin interface{}) {
-	plugin, _ = self.CreateWithError()
-	return
-}
-
 // Creates a new instance
 func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Error while initializing plugin: [%s]", plugin)
+		}
+	}()
+
 	plugin = self.pluginCreator()
 	if self.global == nil {
 		err = plugin.(Plugin).Init(self.configCreator())

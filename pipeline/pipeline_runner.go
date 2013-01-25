@@ -89,20 +89,47 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 }
 
 func (self *PipelinePack) InitDecoders(config *PipelineConfig) {
+
+	var plugin interface{}
+	var err error
+
 	for name, wrapper := range config.Decoders {
-		self.Decoders[name] = wrapper.Create().(Decoder)
+		plugin, err = wrapper.CreateWithError()
+		if err != nil {
+			log.Printf("Error initializing [%s] : [%s]", name, err.Error())
+		} else {
+			self.Decoders[name] = plugin.(Decoder)
+		}
 	}
 }
 
 func (self *PipelinePack) InitFilters(config *PipelineConfig) {
+
+	var plugin interface{}
+	var err error
+
 	for name, wrapper := range config.Filters {
-		self.Filters[name] = wrapper.Create().(Filter)
+		plugin, err = wrapper.CreateWithError()
+		if err != nil {
+			log.Printf("Error initializing [%s] : [%s]", name, err.Error())
+		} else {
+			self.Filters[name] = plugin.(Filter)
+		}
 	}
 }
 
 func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
+
+	var plugin interface{}
+	var err error
+
 	for name, wrapper := range config.Outputs {
-		self.Outputs[name] = wrapper.Create().(Output)
+		plugin, err = wrapper.CreateWithError()
+		if err != nil {
+			log.Printf("Error initializing [%s] : [%s]", name, err.Error())
+		} else {
+			self.Outputs[name] = plugin.(Output)
+		}
 	}
 }
 
@@ -226,7 +253,14 @@ func Run(config *PipelineConfig) {
 	inputRunners := make(map[string]*InputRunner)
 
 	for name, wrapper := range config.Inputs {
-		input := wrapper.Create().(Input)
+		plugin, err := wrapper.CreateWithError()
+		if err != nil {
+			log.Panicf("Error while creating input: [%s]: %s", plugin, err.Error())
+		}
+		input, ok := plugin.(Input)
+		if !ok {
+			log.Panicf("Expected an Input plugin.  Got: [%s]", plugin)
+		}
 		runner = &InputRunner{name, input, &timeout}
 		inputRunners[name] = runner
 		runner.Start(pipeline, recycleChan, &wg)
