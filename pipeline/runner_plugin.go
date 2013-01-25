@@ -15,6 +15,7 @@ package pipeline
 
 import (
 	"errors"
+	"fmt"
 	"github.com/rafrombrc/go-notify"
 	"log"
 	"runtime"
@@ -131,8 +132,10 @@ func (self *Runner) InitOnce(config interface{}) (global PluginGlobal, err error
 
 	g.dataChan = make(chan interface{}, 2*PoolSize)
 	g.recycleChan = make(chan interface{}, 2*PoolSize)
-	for i := 0; i < 2*PoolSize; i++ {
-		g.recycleChan <- g.Recycler.MakeOutData()
+
+	err = preallocate_outdata(PoolSize, g)
+	if err != nil {
+		return g, err
 	}
 
 	if self.BatchWriter != nil {
@@ -143,6 +146,17 @@ func (self *Runner) InitOnce(config interface{}) (global PluginGlobal, err error
 	return g, nil
 }
 
+func preallocate_outdata(pool_size int, global *RunnerGlobal) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Error while preallocating outData for: [%s]", global.Recycler)
+		}
+	}()
+	for i := 0; i < 2*pool_size; i++ {
+		global.recycleChan <- global.Recycler.MakeOutData()
+	}
+	return
+}
 func (self *Runner) Init(global PluginGlobal, config interface{}) error {
 	self.global = global.(*RunnerGlobal)
 	return nil
