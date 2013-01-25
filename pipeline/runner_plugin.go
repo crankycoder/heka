@@ -163,8 +163,7 @@ func (self *Runner) batch_runner() {
 			if err = self.BatchWriter.Batch(outData); err != nil {
 				log.Println("OutputWriter error: ", err)
 			}
-			self.global.Recycler.ZeroOutData(outData)
-			self.global.recycleChan <- outData
+			self.RecycleOutData(outData)
 		case <-stopChan:
 			return
 		}
@@ -184,21 +183,29 @@ func (self *Runner) runner() {
 			if err = self.Writer.Write(outData); err != nil {
 				log.Println("OutputWriter error: ", err)
 			}
-			self.global.Recycler.ZeroOutData(outData)
-			self.global.recycleChan <- outData
+			self.RecycleOutData(outData)
 		case <-stopChan:
 			return
 		}
 	}
 }
 
+func (self *Runner) RecycleOutData(outData interface{}) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Not replacing recycle channel. ZeroOutData failed for plugin [%s]", self)
+		}
+	}()
+	self.global.Recycler.ZeroOutData(outData)
+	self.global.recycleChan <- outData
+}
+
 func (self *Runner) Deliver(pack *PipelinePack) {
 	self.outData = <-self.global.recycleChan
 	err := self.global.Recycler.PrepOutData(pack, self.outData, nil)
 	if err != nil {
-		log.Printf("PrepOutData error: %s", err.Error())
-		self.global.Recycler.ZeroOutData(self.outData)
-		self.global.recycleChan <- self.outData
+		log.Printf("PipelinePack skipping data channel. PrepOutData error in plugin [%s]: %s\n", self, err.Error())
+		self.RecycleOutData(self.outData)
 		return
 	}
 	self.global.dataChan <- self.outData
@@ -209,8 +216,7 @@ func (self *Runner) FilterMsg(pipelinePack *PipelinePack) {
 	err := self.global.Recycler.PrepOutData(pipelinePack, self.outData, nil)
 	if err != nil {
 		log.Printf("PrepOutData error: %s", err.Error())
-		self.global.Recycler.ZeroOutData(self.outData)
-		self.global.recycleChan <- self.outData
+		self.RecycleOutData(self.outData)
 		return
 	}
 	self.global.dataChan <- self.outData
@@ -221,8 +227,7 @@ func (self *Runner) Read(pipelinePack *PipelinePack,
 	self.outData = <-self.global.recycleChan
 	err = self.global.Recycler.PrepOutData(pipelinePack, self.outData, timeout)
 	if err != nil {
-		self.global.Recycler.ZeroOutData(self.outData)
-		self.global.recycleChan <- self.outData
+		self.RecycleOutData(self.outData)
 		return
 	}
 	self.global.dataChan <- self.outData
