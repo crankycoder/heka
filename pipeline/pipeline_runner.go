@@ -170,6 +170,15 @@ func filterProcessor(pipelinePack *PipelinePack) {
 	}
 }
 
+func safe_plugin_global_event(wrapper *PluginWrapper, eventType string) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Error sending [%s] event: %s", eventType, r.(error).Error())
+		}
+	}()
+	wrapper.global.Event(eventType)
+}
+
 func BroadcastEvent(config *PipelineConfig, eventType string) {
 	err := notify.Post(eventType, nil)
 	if err != nil {
@@ -179,12 +188,12 @@ func BroadcastEvent(config *PipelineConfig, eventType string) {
 	var wrapper *PluginWrapper
 	for _, wrapper = range config.Filters {
 		if wrapper.global != nil {
-			wrapper.global.Event(eventType)
+			safe_plugin_global_event(wrapper, eventType)
 		}
 	}
 	for _, wrapper = range config.Outputs {
 		if wrapper.global != nil {
-			wrapper.global.Event(eventType)
+			safe_plugin_global_event(wrapper, eventType)
 		}
 	}
 }
