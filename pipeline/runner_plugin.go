@@ -184,6 +184,15 @@ func (self *Runner) batch_runner() {
 	}
 }
 
+func safe_writer(writer Writer, outData interface{}) error {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Writer error : %s", r.(error).Error())
+		}
+	}()
+	return writer.Write(outData)
+}
+
 func (self *Runner) runner() {
 	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
@@ -194,7 +203,9 @@ func (self *Runner) runner() {
 		runtime.Gosched()
 		select {
 		case outData = <-self.global.dataChan:
-			if err = self.Writer.Write(outData); err != nil {
+
+			if err = safe_writer(self.Writer, outData); err != nil {
+
 				log.Println("OutputWriter error: ", err)
 			}
 			self.RecycleOutData(outData)
