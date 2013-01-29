@@ -209,6 +209,15 @@ func safe_decode(decoder Decoder, pack *PipelinePack) (err error) {
 	return
 }
 
+func safe_deliver(output *Output, pack *pipelinePack) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Output delivery failed: %s", r.(error).Error())
+		}
+	}()
+	output.Deliver(pack)
+}
+
 func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
@@ -259,7 +268,7 @@ func Run(config *PipelineConfig) {
 				log.Printf("Output doesn't exist: %s\n", outputName)
 				continue
 			}
-			output.Deliver(pack)
+			safe_deliver(output, pack)
 		}
 	}
 
