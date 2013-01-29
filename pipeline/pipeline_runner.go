@@ -14,6 +14,7 @@
 package pipeline
 
 import (
+	"errors"
 	. "github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
 	"log"
@@ -198,6 +199,16 @@ func BroadcastEvent(config *PipelineConfig, eventType string) {
 	}
 }
 
+func safe_decode(decoder Decoder, pack *PipelinePack) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("Error running decoder on pack.")
+		}
+	}()
+	err = decoder.Decode(pack)
+	return
+}
+
 func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
@@ -222,7 +233,8 @@ func Run(config *PipelineConfig) {
 				log.Printf("Decoder doesn't exist: %s\n", decoderName)
 				return
 			}
-			if err := decoder.Decode(pack); err != nil {
+
+			if err := safe_decode(decoder, pack); err != nil {
 				log.Printf("Error decoding message (%s): %s", decoderName,
 					err)
 				return
