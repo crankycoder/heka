@@ -46,6 +46,7 @@ type PipelineConfig struct {
 	Decoders           map[string]*PluginWrapper
 	Filters            map[string]*PluginWrapper
 	Outputs            map[string]*PluginWrapper
+	OutputRunners      map[string]*OutputRunner
 	FilterChains       map[string]FilterChain
 	DefaultDecoder     string
 	DefaultFilterChain string
@@ -62,6 +63,7 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	config.DefaultFilterChain = "default"
 	config.Lookup = new(MessageLookup)
 	config.Lookup.MessageType = make(map[string][]string)
+	config.OutputRunners = make(map[string]*OutputRunner)
 	return config
 }
 
@@ -86,7 +88,7 @@ type MessageLookup struct {
 }
 
 func (self *MessageLookup) LocateChain(message *Message) (string, bool) {
-	if chains, ok := self.MessageType[message.Type]; ok {
+	if chains, ok := self.MessageType[*message.Type]; ok {
 		return chains[0], true
 	}
 	return "", false
@@ -100,6 +102,7 @@ type PluginWrapper struct {
 	configCreator func() interface{}
 	pluginCreator func() interface{}
 	global        PluginGlobal
+	firstPlugin   interface{}
 }
 
 // Creates a new instance
@@ -109,6 +112,12 @@ func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 			err = fmt.Errorf("Error while initializing plugin: [%s]", plugin)
 		}
 	}()
+
+	if self.firstPlugin != nil {
+		plugin = self.firstPlugin
+		self.firstPlugin = nil
+		return
+	}
 
 	plugin = self.pluginCreator()
 	if self.global == nil {
@@ -195,10 +204,10 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 			}
 		}
 
-		if _, err = wrapper.CreateWithError(); err != nil {
+		if plugin, err = wrapper.CreateWithError(); err != nil {
 			return config, errors.New("Unable to create plugin: " + err.Error())
 		}
-
+		wrapper.firstPlugin = plugin
 		config[wrapper.name] = wrapper
 	}
 	return config, nil
@@ -341,12 +350,18 @@ func init() {
 	RegisterPlugin("UdpInput", func() interface{} {
 		return new(UdpInput)
 	})
+	RegisterPlugin("TcpInput", func() interface{} {
+		return new(TcpInput)
+	})
 	RegisterPlugin("JsonDecoder", func() interface{} {
 		return new(JsonDecoder)
 	})
-	RegisterPlugin("MsgPackDecoder", func() interface{} {
-		return new(MsgPackDecoder)
+	RegisterPlugin("ProtobufDecoder", func() interface{} {
+		return new(ProtobufDecoder)
 	})
+	//  RegisterPlugin("ProtocolBufferDecoder", func() interface{} {
+	//      return new(ProtocolBufferDecoder)
+	//  })
 	RegisterPlugin("StatsdUdpInput", func() interface{} {
 		return RunnerMaker(new(StatsdInWriter))
 	})
