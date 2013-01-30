@@ -127,7 +127,7 @@ func safe_writer_init(writer Writer, config interface{}) (err error) {
 		}
 	}()
 	err = writer.Init(config)
-    return
+	return
 }
 
 func (self *Runner) InitOnce(config interface{}) (global PluginGlobal, err error) {
@@ -178,7 +178,6 @@ func preallocate_outdata(pool_size int, global *RunnerGlobal) (err error) {
 		}
 	}()
 	for i := 0; i < 2*pool_size; i++ {
-		// TODO vng make MakeOutData safe
 		global.recycleChan <- global.Recycler.MakeOutData()
 	}
 	return
@@ -186,6 +185,17 @@ func preallocate_outdata(pool_size int, global *RunnerGlobal) (err error) {
 func (self *Runner) Init(global PluginGlobal, config interface{}) error {
 	self.global = global.(*RunnerGlobal)
 	return nil
+}
+
+func safe_batchwriter_commit(batchwriter BatchWriter) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Error while calling commit on batchwriter: %s", r.(error).Error())
+			return
+		}
+	}()
+	batchwriter.Commit()
+	return
 }
 
 func (self *Runner) batch_runner() {
@@ -198,10 +208,10 @@ func (self *Runner) batch_runner() {
 		runtime.Gosched()
 		select {
 		case <-self.global.ticker:
-			// TODO vng  make Commit safe
-			self.BatchWriter.Commit()
+			if err = safe_batchwriter_commit(self.BatchWriter); err != nil {
+				log.Println("BatchWriter commit error: ", err)
+			}
 		case outData = <-self.global.dataChan:
-			// TODO vng  make Batch safe
 			if err = self.BatchWriter.Batch(outData); err != nil {
 				log.Println("OutputWriter error: ", err)
 			}
@@ -249,15 +259,25 @@ func (self *Runner) RecycleOutData(outData interface{}) {
 			log.Printf("Not replacing recycle channel. ZeroOutData failed for plugin [%s]", self)
 		}
 	}()
-	// TODO vng make ZeroOutData safe
 	self.global.Recycler.ZeroOutData(outData)
 	self.global.recycleChan <- outData
 }
 
+func safe_prepoutdata(recycler DataRecycler, pack *PipelinePack, outData interface{}, timeout *time.Duration) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("PrepOutData panic detected: %s", r.(error).Error())
+			return
+		}
+	}()
+	return recycler.PrepOutData(pack, outData, timeout)
+}
+
 func (self *Runner) Deliver(pack *PipelinePack) {
 	self.outData = <-self.global.recycleChan
-	// TODO vng make ZeroOutData safe
-	err := self.global.Recycler.PrepOutData(pack, self.outData, nil)
+
+	err := safe_prepoutdata(self.global.Recycler, pack, self.outData, nil)
+
 	if err != nil {
 		log.Printf("PipelinePack skipping data channel. PrepOutData error in plugin [%s]: %s\n", self, err.Error())
 		self.RecycleOutData(self.outData)
@@ -268,8 +288,9 @@ func (self *Runner) Deliver(pack *PipelinePack) {
 
 func (self *Runner) FilterMsg(pipelinePack *PipelinePack) {
 	self.outData = <-self.global.recycleChan
-	// TODO vng make ZeroOutData safe
-	err := self.global.Recycler.PrepOutData(pipelinePack, self.outData, nil)
+
+	err := safe_prepoutdata(self.global.Recycler, pipelinePack, self.outData, nil)
+
 	if err != nil {
 		log.Printf("PrepOutData error: %s", err.Error())
 		self.RecycleOutData(self.outData)
@@ -278,11 +299,10 @@ func (self *Runner) FilterMsg(pipelinePack *PipelinePack) {
 	self.global.dataChan <- self.outData
 }
 
-func (self *Runner) Read(pipelinePack *PipelinePack,
-	timeout *time.Duration) (err error) {
+func (self *Runner) Read(pipelinePack *PipelinePack, timeout *time.Duration) (err error) {
 	self.outData = <-self.global.recycleChan
-	// TODO vng make ZeroOutData safe
-	err = self.global.Recycler.PrepOutData(pipelinePack, self.outData, timeout)
+
+	err = safe_prepoutdata(self.global.Recycler, pipelinePack, self.outData, timeout)
 	if err != nil {
 		self.RecycleOutData(self.outData)
 		return
