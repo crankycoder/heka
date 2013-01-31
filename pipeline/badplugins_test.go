@@ -42,6 +42,7 @@ func BadPluginsSpec(c gs.Context) {
 				return &BuggyPluginWithGlobal{map[string]bool{"Init": true}}
 			}
 			wrapper.global = new(MockGlobal)
+
 			plugin, err := wrapper.CreateWithError()
 			_, is_pluginwithglobal := plugin.(PluginWithGlobal)
 
@@ -51,6 +52,21 @@ func BadPluginsSpec(c gs.Context) {
 		})
 
 		c.Specify("buggy InitOnce", func() {
+			// This is only invoked in config.go:PluginWrapper.CreateWithError
+
+			// This is only invoked in config.go:PluginWrapper.CreateWithError
+			plugin := &BuggyPluginWithGlobal{map[string]bool{"InitOnce": true}}
+			wrapper := new(PluginWrapper)
+			wrapper.name = "DemoPlugin"
+			wrapper.configCreator = func() interface{} { return nil }
+			wrapper.pluginCreator = func() interface{} {
+				return plugin
+			}
+			wrapper.global = new(MockGlobal)
+
+			_, err := safe_initonce(plugin, wrapper)
+			c.Expect(err.Error(), gs.Equals, "Error while calling InitOnce : [*pipeline.BuggyPluginWithGlobal][InitOnce Failed]")
+
 		})
 	})
 

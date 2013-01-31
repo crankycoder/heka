@@ -14,12 +14,12 @@
 package pipeline
 
 import (
-    "reflect"
 	"encoding/json"
 	"errors"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
 	"os"
+	"reflect"
 )
 
 var AvailablePlugins = make(map[string]func() interface{})
@@ -121,7 +121,6 @@ func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 	}
 
 	plugin = self.pluginCreator()
-	fmt.Printf("Got plugin :%s\n", plugin)
 	if self.global == nil {
 		err = plugin.(Plugin).Init(self.configCreator())
 	} else {
@@ -167,6 +166,15 @@ func LoadConfigStruct(config *PluginConfig, configable interface{}) (interface{}
 	return configStruct, nil
 }
 
+func safe_initonce(plugin PluginWithGlobal, wrapper *PluginWrapper) (global PluginGlobal, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Error while calling InitOnce : [%s][%s]", reflect.TypeOf(plugin), r)
+		}
+	}()
+	return plugin.InitOnce(wrapper.configCreator())
+}
+
 // loadSection can be passed a configSection, the appropriate mapping
 // of available plug-ins for that section, and will then create
 // PluginWrappers for each plug-in instance defined
@@ -200,7 +208,7 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 
 		// Determine if this plug-in has a global, if it does, make it now
 		if hasPluginGlobal, ok := plugin.(PluginWithGlobal); ok {
-			wrapper.global, err = hasPluginGlobal.InitOnce(wrapper.configCreator())
+			wrapper.global, err = safe_initonce(hasPluginGlobal, wrapper)
 			if err != nil {
 				return config, errors.New("Unable to InitOnce: " + err.Error())
 			}
