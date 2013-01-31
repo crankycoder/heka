@@ -110,7 +110,7 @@ func safe_batch_init(batchwriter BatchWriter, config interface{}) (ticker <-chan
 	err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("WriteRunner panic during Init: %s", r.(error).Error())
+			err = fmt.Errorf("WriteRunner panic during Init: %s", r)
 			return
 		}
 	}()
@@ -122,7 +122,7 @@ func safe_batch_init(batchwriter BatchWriter, config interface{}) (ticker <-chan
 func safe_writer_init(writer Writer, config interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("Writer panic during Init: %s", r.(error).Error())
+			err = fmt.Errorf("Writer panic during Init: %s", r)
 			return
 		}
 	}()
@@ -190,7 +190,7 @@ func (self *Runner) Init(global PluginGlobal, config interface{}) error {
 func safe_batchwriter_commit(batchwriter BatchWriter) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("Error while calling commit on batchwriter: %s", r.(error).Error())
+			err = fmt.Errorf("Error while calling commit on batchwriter: %s", r)
 			return
 		}
 	}()
@@ -225,7 +225,7 @@ func (self *Runner) batch_runner() {
 func safe_writer(writer Writer, outData interface{}) error {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println("Writer error : %s", r.(error).Error())
+			log.Println("Writer error : %s", r)
 		}
 	}()
 	return writer.Write(outData)
@@ -266,7 +266,7 @@ func (self *Runner) RecycleOutData(outData interface{}) {
 func safe_prepoutdata(recycler DataRecycler, pack *PipelinePack, outData interface{}, timeout *time.Duration) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("PrepOutData panic detected: %s", r.(error).Error())
+			err = fmt.Errorf("PrepOutData panic detected: %s", r)
 			return
 		}
 	}()

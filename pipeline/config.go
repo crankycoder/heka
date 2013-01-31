@@ -14,6 +14,7 @@
 package pipeline
 
 import (
+    "reflect"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -109,7 +110,7 @@ type PluginWrapper struct {
 func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("Error while initializing plugin: [%s]", plugin)
+			err = fmt.Errorf("Error while initializing plugin: [%s][%s]", reflect.TypeOf(plugin), r)
 		}
 	}()
 
@@ -120,6 +121,7 @@ func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 	}
 
 	plugin = self.pluginCreator()
+	fmt.Printf("Got plugin :%s\n", plugin)
 	if self.global == nil {
 		err = plugin.(Plugin).Init(self.configCreator())
 	} else {
@@ -203,6 +205,7 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 				return config, errors.New("Unable to InitOnce: " + err.Error())
 			}
 		}
+		/* end of plugin init/config load */
 
 		if plugin, err = wrapper.CreateWithError(); err != nil {
 			return config, errors.New("Unable to create plugin: " + err.Error())

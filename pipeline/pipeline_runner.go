@@ -165,7 +165,7 @@ func filterProcessor(pipelinePack *PipelinePack) {
 func safe_filter(filterName string, filter Filter, pipelinePack *PipelinePack) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Error executing filter [%s] event: %s.  Blocking the pack.", filterName, r.(error).Error())
+			log.Printf("Error executing filter [%s] event: %s.  Blocking the pack.", filterName, r)
 			pipelinePack.Blocked = true
 		}
 	}()
@@ -175,7 +175,7 @@ func safe_filter(filterName string, filter Filter, pipelinePack *PipelinePack) {
 func safe_plugin_global_event(wrapper *PluginWrapper, eventType string) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Error sending [%s] event: %s", eventType, r.(error).Error())
+			log.Printf("Error sending [%s] event: %s", eventType, r)
 		}
 	}()
 	wrapper.global.Event(eventType)
@@ -214,7 +214,7 @@ func safe_decode(decoder Decoder, pack *PipelinePack) (err error) {
 func safe_deliver(output Output, pack *PipelinePack) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println("Output delivery failed: %s", r.(error).Error())
+			log.Println("Output delivery failed: %s", r)
 		}
 	}()
 	output.Deliver(pack)
