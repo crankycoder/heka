@@ -14,7 +14,6 @@
 package pipeline
 
 import (
-	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
@@ -26,15 +25,29 @@ func BadPluginsSpec(c gs.Context) {
 			wrapper.name = "DemoPlugin"
 			wrapper.configCreator = func() interface{} { return nil }
 			wrapper.pluginCreator = func() interface{} {
-				return ts.NewBuggyPlugin(map[string]bool{"Init": true})
+				return &BuggyPlugin{map[string]bool{"Init": true}}
 			}
 			_, err := wrapper.CreateWithError()
-			c.Expect(err.Error(), gs.Equals, "Error while initializing plugin: [*testsupport.BuggyPlugin][Init Failed]")
+			c.Expect(err.Error(), gs.Equals, "Error while initializing plugin: [*pipeline.BuggyPlugin][Init Failed]")
 		})
 	})
 
 	c.Specify("PluginWithGlobal interfaces", func() {
 		c.Specify("buggy Init", func() {
+			// This is only invoked in config.go:PluginWrapper.CreateWithError
+			wrapper := new(PluginWrapper)
+			wrapper.name = "DemoPlugin"
+			wrapper.configCreator = func() interface{} { return nil }
+			wrapper.pluginCreator = func() interface{} {
+				return &BuggyPluginWithGlobal{map[string]bool{"Init": true}}
+			}
+			wrapper.global = new(MockGlobal)
+			plugin, err := wrapper.CreateWithError()
+			_, is_pluginwithglobal := plugin.(PluginWithGlobal)
+
+			c.Expect(is_pluginwithglobal, gs.Equals, true)
+			c.Expect(err.Error(), gs.Equals, "Error while initializing plugin: [*pipeline.BuggyPluginWithGlobal][Init Failed]")
+
 		})
 
 		c.Specify("buggy InitOnce", func() {
@@ -97,3 +110,41 @@ func BadPluginsSpec(c gs.Context) {
 	})
 
 }
+
+/************/
+// An implementation of a buggy Plugin interface
+type BuggyPlugin struct {
+	buggy map[string]bool
+}
+
+type BuggyPluginWithGlobal struct {
+	buggy map[string]bool
+}
+
+func (b *BuggyPlugin) Init(_param0 interface{}) error {
+	fail, ok := b.buggy["Init"]
+	if ok && fail {
+		panic("Init Failed")
+	}
+	return nil
+}
+
+func (b *BuggyPluginWithGlobal) Init(global PluginGlobal, config interface{}) error {
+	fail, ok := b.buggy["Init"]
+	if ok && fail {
+		panic("Init Failed")
+	}
+	return nil
+}
+
+func (b *BuggyPluginWithGlobal) InitOnce(config interface{}) (global PluginGlobal, err error) {
+	fail, ok := b.buggy["InitOnce"]
+	if ok && fail {
+		panic("InitOnce Failed")
+	}
+	return new(MockGlobal), nil
+}
+
+type MockGlobal struct{}
+
+func (m *MockGlobal) Event(eventType string) {}
