@@ -72,6 +72,9 @@ func BadPluginsSpec(c gs.Context) {
 
 	c.Specify("PluginGlobal interfaces", func() {
 		c.Specify("buggy Event", func() {
+			global := &MockGlobal{buggy: map[string]bool{"Event": true}, DidPanic: false}
+			SafePluginGlobal_Event(global, "foo")
+			c.Expect(global.DidPanic, gs.Equals, true)
 		})
 	})
 
@@ -161,6 +164,15 @@ func (b *BuggyPluginWithGlobal) InitOnce(config interface{}) (global PluginGloba
 	return new(MockGlobal), nil
 }
 
-type MockGlobal struct{}
+type MockGlobal struct {
+	buggy    map[string]bool
+	DidPanic bool
+}
 
-func (m *MockGlobal) Event(eventType string) {}
+func (m *MockGlobal) Event(eventType string) {
+	fail, ok := m.buggy["Event"]
+	if ok && fail {
+		m.DidPanic = true
+		panic("Event Failed")
+	}
+}

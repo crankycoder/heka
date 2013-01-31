@@ -92,7 +92,7 @@ type RunnerGlobal struct {
 
 func (self *RunnerGlobal) Event(eventType string) {
 	if self.Events != nil {
-		self.Events.Event(eventType)
+        SafePluginGlobal_Event(self.Events, eventType)
 	}
 }
 
