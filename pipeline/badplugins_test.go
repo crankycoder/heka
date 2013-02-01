@@ -14,7 +14,9 @@
 package pipeline
 
 import (
+	"fmt"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"log"
 )
 
 func BadPluginsSpec(c gs.Context) {
@@ -80,6 +82,12 @@ func BadPluginsSpec(c gs.Context) {
 
 	c.Specify("HasConfigStruct interfaces", func() {
 		c.Specify("buggy ConfigStruct()", func() {
+			// This is only invoked in config.go:PluginWrapper.CreateWithError
+			plugin := &BuggyPlugin{map[string]bool{"ConfigStruct": true}}
+			_, err := Safe_Configstruct(plugin)
+
+			expected := "Error invoking ConfigStruct() on [*pipeline.BuggyPlugin]: ConfigStruct Failed"
+			c.Expect(err.Error(), gs.Equals, expected)
 		})
 	})
 
@@ -144,6 +152,16 @@ func (b *BuggyPlugin) Init(_param0 interface{}) error {
 	fail, ok := b.buggy["Init"]
 	if ok && fail {
 		panic("Init Failed")
+	}
+	return nil
+}
+
+func (b *BuggyPlugin) ConfigStruct() interface{} {
+	fmt.Println("invoked ConfigStruct")
+	fail, ok := b.buggy["ConfigStruct"]
+	if ok && fail {
+		log.Println("Throwing an error")
+		panic("ConfigStruct Failed")
 	}
 	return nil
 }

@@ -130,10 +130,10 @@ func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 	return
 }
 
-func safe_configstruct(hasConfigStruct HasConfigStruct) (configStruct interface{}, err error) {
+func Safe_Configstruct(hasConfigStruct HasConfigStruct) (configStruct interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("Error invoking ConfigStruct() on [%s]: %s", hasConfigStruct, r)
+			err = fmt.Errorf("Error invoking ConfigStruct() on [%s]: %s", reflect.TypeOf(hasConfigStruct), r)
 		}
 	}()
 	configStruct = hasConfigStruct.ConfigStruct()
@@ -154,7 +154,7 @@ func LoadConfigStruct(config *PluginConfig, configable interface{}) (interface{}
 		return nil, errors.New("Unable to marshal: " + err.Error())
 	}
 
-	configStruct, err := safe_configstruct(hasConfigStruct)
+	configStruct, err := Safe_Configstruct(hasConfigStruct)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to invoke ConfigStruct() on [%s]: %s", hasConfigStruct, err)
 	}
