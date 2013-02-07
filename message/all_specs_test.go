@@ -224,7 +224,6 @@ func MessageEqualsSpec(c gospec.Context) {
 			severity,
 			str_ts,
 			hostname,
-			// TODO: add fields here
 			pid,
 			logger,
 			msg_type,
@@ -320,4 +319,19 @@ func MessageEqualsSpec(c gospec.Context) {
 		c.Expect(field_value.(string), gs.Equals, "metlog.tests.test_decorators.timed_add")
 	})
 
+	c.Specify("Messages can unmarshal nested structs", func() {
+		sample_json := `{"severity": 6, "timestamp": "2013-02-05T19:39:53.916612Z", "metlog_hostname": "localhost", "fields": {"rate": 1.0, "an_array": [5, 3, 9, 7]}, "metlog_pid": 4532, "logger": "foo", "type": "demo", "payload": "blah", "env_version": "0.8"}`
+
+		m := new(Message)
+		m.UnmarshalJSON([]byte(sample_json))
+		var field_value interface{}
+		field_value, _ = m.GetFieldValue("rate")
+		c.Expect(field_value.(float64), gs.Equals, 1.0)
+
+		f := m.FindFirstField("an_array")
+		c.Expect(f.ValueDouble[0], gs.Equals, float64(5))
+		c.Expect(f.ValueDouble[1], gs.Equals, float64(3))
+		c.Expect(f.ValueDouble[2], gs.Equals, float64(9))
+		c.Expect(f.ValueDouble[3], gs.Equals, float64(7))
+	})
 }

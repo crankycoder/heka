@@ -493,9 +493,9 @@ func (m *Message) Equals(other interface{}) bool {
 
 func serialize_array(arr []interface{}) string {
 	results := "["
-	x := 0
+	x := false
 	for _, v := range arr {
-		if x > 0 {
+		if x {
 			results += ", "
 		}
 		switch interface{}(v).(type) {
@@ -505,6 +505,8 @@ func serialize_array(arr []interface{}) string {
 		case int, int32, int64, float32, float64:
 			j, _ := json.Marshal(v)
 			results += string(j)
+
+			// TODO: handle nested arrays and maps
 			/*
 				case map[string]interface{}:
 					var tmp_map map[string]interface{}
@@ -516,7 +518,7 @@ func serialize_array(arr []interface{}) string {
 					results += serialize_array(tmp_arr)
 			*/
 		}
-		x += 1
+		x = true
 	}
 	results += "]"
 	return results
@@ -524,9 +526,9 @@ func serialize_array(arr []interface{}) string {
 
 func serialize_map(msg_fields []*Field) string {
 	results := "{"
-	x := 0
+	x := false
 	for _, v := range msg_fields {
-		if x > 0 {
+		if x {
 			results += ", "
 		}
 		field_type := v.GetValueType()
@@ -544,7 +546,7 @@ func serialize_map(msg_fields []*Field) string {
 			results += "<something_else_here>"
 
 		}
-		x += 1
+		x = true
 	}
 	results += "}"
 	return results
@@ -632,6 +634,7 @@ func flattenArray(a []interface{}, msg *Message, path string) error {
 
 		default:
 			var childPath string
+			fmt.Println("Calling flattenValue in flattenArray")
 			for i, v := range a {
 				childPath = fmt.Sprintf("%s.%d", path, i)
 				err := flattenValue(v, msg, childPath)
@@ -650,11 +653,15 @@ func flattenValue(v interface{}, msg *Message, path string) error {
 		f, _ := NewField(path, v, Field_RAW)
 		msg.AddField(f)
 	case []interface{}:
+		// TODO: check stuff here
+		fmt.Printf("Flattened nested array: %s\n", path)
 		err := flattenArray(v.([]interface{}), msg, path)
 		if err != nil {
 			return err
 		}
 	case map[string]interface{}:
+		// TODO: check stuff here
+		fmt.Printf("Flattened nested map: %s\n", path)
 		err := flattenMap(v.(map[string]interface{}), msg, path)
 		if err != nil {
 			return err
