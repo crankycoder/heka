@@ -653,15 +653,11 @@ func flattenValue(v interface{}, msg *Message, path string) error {
 		f, _ := NewField(path, v, Field_RAW)
 		msg.AddField(f)
 	case []interface{}:
-		// TODO: check stuff here
-		fmt.Printf("Flattened nested array: %s\n", path)
 		err := flattenArray(v.([]interface{}), msg, path)
 		if err != nil {
 			return err
 		}
 	case map[string]interface{}:
-		// TODO: check stuff here
-		fmt.Printf("Flattened nested map: %s\n", path)
 		err := flattenMap(v.(map[string]interface{}), msg, path)
 		if err != nil {
 			return err

@@ -15,14 +15,10 @@
 package pipeline
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
-	"errors"
 	"fmt"
-	"github.com/bitly/go-simplejson"
 	"github.com/mozilla-services/heka/message"
 	"log"
-	"time"
 )
 
 type DecoderRunner struct {
@@ -137,35 +133,9 @@ func flattenMap(m map[string]interface{}, msg *message.Message, path string) err
 }
 
 func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
-	msgBytes := pipelinePack.MsgBytes
-	msgJson, err := simplejson.NewJson(msgBytes)
+	err := pipelinePack.Message.UnmarshalJSON(pipelinePack.MsgBytes)
 	if err != nil {
-		return err
-	}
-
-	msg := pipelinePack.Message
-	uuidString, _ := msgJson.Get("uuid").String()
-	u := uuid.Parse(uuidString)
-	msg.SetUuid(u)
-	msg.SetType(msgJson.Get("type").MustString())
-	timeStr := msgJson.Get("timestamp").MustString()
-	t, err := time.Parse(time.RFC3339Nano, timeStr)
-	if err != nil {
-		log.Printf("Timestamp parsing error: %s\n", err.Error())
-		return errors.New("invalid Timestamp")
-	}
-	msg.SetTimestamp(t.UnixNano())
-	msg.SetLogger(msgJson.Get("logger").MustString())
-	msg.SetSeverity(int32(msgJson.Get("severity").MustInt()))
-	msg.SetPayload(msgJson.Get("payload").MustString())
-	msg.SetEnvVersion(msgJson.Get("env_version").MustString())
-	i, _ := msgJson.Get("metlog_pid").Int()
-	msg.SetPid(int32(i))
-	msg.SetHostname(msgJson.Get("metlog_hostname").MustString())
-	fields, _ := msgJson.Get("fields").Map()
-	err = flattenMap(fields, msg, "")
-	if err != nil {
-		return err
+		return fmt.Errorf("unmarshaling error: ", err)
 	}
 	return nil
 }
