@@ -17,8 +17,9 @@ package message
 import (
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
-	"github.com/rafrombrc/gospec/src/gospec"
+	"fmt"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"github.com/rafrombrc/gospec/src/gospec"
 	"os"
 	"testing"
 	"time"
@@ -208,4 +209,115 @@ func MessageEqualsSpec(c gospec.Context) {
 		foos[1].ValueString[0] = "bar2"
 		c.Expect(msg0, gs.Not(gs.Equals), msg1)
 	})
+
+	c.Specify("Messages can unmarshal JSON", func() {
+		severity := int32(6)
+		str_ts := "2013-02-05T19:39:53.916612Z"
+		hostname := "Victors-MacBook-Air.local"
+		pid := int32(46543)
+		logger := "blah"
+		msg_type := "timer"
+		payload := "51"
+		version := "0.8"
+
+		sample_json := fmt.Sprintf(`{"severity": %d, "timestamp": "%s", "metlog_hostname": "%s", "fields": {"rate": 1.0, "name": "metlog.tests.test_decorators.timed_add"}, "metlog_pid": %d, "logger": "%s", "type": "%s", "payload": "%s", "env_version": "%s"}`,
+			severity,
+			str_ts,
+			hostname,
+			// TODO: add fields here
+			pid,
+			logger,
+			msg_type,
+			payload,
+			version)
+		m := new(Message)
+		m.UnmarshalJSON([]byte(sample_json))
+
+		t, _ := time.Parse(time.RFC3339Nano, str_ts)
+
+		var field_value interface{}
+		var expected_nil_uuid []byte
+
+		expected_nil_uuid = make([]byte, UUID_SIZE)
+		c.Expect(bytes.Compare(m.GetUuid(), expected_nil_uuid), gs.Equals, 0)
+		c.Expect(m.GetTimestamp(), gs.Equals, t.UnixNano())
+		c.Expect(m.GetType(), gs.Equals, msg_type)
+		c.Expect(m.GetLogger(), gs.Equals, logger)
+		c.Expect(m.GetSeverity(), gs.Equals, severity)
+		c.Expect(m.GetPayload(), gs.Equals, payload)
+		c.Expect(m.GetEnvVersion(), gs.Equals, version)
+		c.Expect(m.GetPid(), gs.Equals, pid)
+		c.Expect(m.GetHostname(), gs.Equals, hostname)
+
+		field_value, _ = m.GetFieldValue("rate")
+		c.Expect(field_value.(float64), gs.Equals, 1.0)
+
+		field_value, _ = m.GetFieldValue("name")
+		c.Expect(field_value.(string), gs.Equals, "metlog.tests.test_decorators.timed_add")
+	})
+
+	c.Specify("Messages can be marshalled into JSON", func() {
+		var tmp interface{}
+
+		uuid := []byte("1234")
+
+		str_ts := "2013-02-05T19:39:53.916612Z"
+		t, _ := time.Parse(time.RFC3339Nano, str_ts)
+		msg_type := "timer"
+		logger := "blah"
+		severity := int32(6)
+
+		payload := "51"
+		version := "0.8"
+
+		pid := int32(46543)
+		hostname := "Victors-MacBook-Air.local"
+
+		m := new(Message)
+		m.SetUuid(uuid)
+		m.SetTimestamp(t.UnixNano())
+		m.SetType(msg_type)
+		m.SetLogger(logger)
+		m.SetSeverity(severity)
+		m.SetPayload(payload)
+		m.SetEnvVersion(version)
+		m.SetPid(pid)
+		m.SetHostname(hostname)
+		field_map := make(map[string]interface{})
+		field_map["rate"] = 1.0
+		field_map["name"] = "metlog.tests.test_decorators.timed_add"
+		flattenMap(field_map, m, "")
+
+		tmp, _ = m.GetFieldValue("rate")
+		c.Expect(tmp.(float64), gs.Equals, field_map["rate"])
+		tmp, _ = m.GetFieldValue("name")
+		c.Expect(tmp.(string), gs.Equals, field_map["name"])
+
+		actual_json, _ := m.MarshalJSON()
+
+		m2 := new(Message)
+		m2.UnmarshalJSON(actual_json)
+
+		var expected_nil_uuid []byte
+		expected_nil_uuid = make([]byte, UUID_SIZE)
+
+		// UUID is not encoded in the JSON blob
+		c.Expect(bytes.Compare(m2.GetUuid(), expected_nil_uuid), gs.Equals, 0)
+		c.Expect(m2.GetTimestamp(), gs.Equals, t.UnixNano())
+		c.Expect(m2.GetType(), gs.Equals, msg_type)
+		c.Expect(m2.GetLogger(), gs.Equals, logger)
+		c.Expect(m2.GetSeverity(), gs.Equals, severity)
+		c.Expect(m2.GetPayload(), gs.Equals, payload)
+		c.Expect(m2.GetEnvVersion(), gs.Equals, version)
+		c.Expect(m2.GetPid(), gs.Equals, pid)
+		c.Expect(m2.GetHostname(), gs.Equals, hostname)
+
+		var field_value interface{}
+		field_value, _ = m2.GetFieldValue("rate")
+		c.Expect(field_value.(float64), gs.Equals, 1.0)
+
+		field_value, _ = m2.GetFieldValue("name")
+		c.Expect(field_value.(string), gs.Equals, "metlog.tests.test_decorators.timed_add")
+	})
+
 }

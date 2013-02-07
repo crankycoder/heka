@@ -17,8 +17,14 @@ package message
 
 import (
 	"bytes"
+	"code.google.com/p/go-uuid/uuid"
+	"encoding/json"
+	"errors"
 	"fmt"
+	simplejson "github.com/bitly/go-simplejson"
+	"log"
 	"reflect"
+	"time"
 )
 
 const UUID_SIZE = 16
@@ -483,4 +489,178 @@ func (m *Message) Equals(other interface{}) bool {
 		}
 	}
 	return true
+}
+
+func serialize_array(arr []interface{}) string {
+	results := "["
+	x := 0
+	for _, v := range arr {
+		if x > 0 {
+			results += ", "
+		}
+		switch interface{}(v).(type) {
+		case string:
+			j, _ := json.Marshal(v)
+			results += string(j)
+		case int, int32, int64, float32, float64:
+			j, _ := json.Marshal(v)
+			results += string(j)
+			/*
+				case map[string]interface{}:
+					var tmp_map map[string]interface{}
+					tmp_map = v.(map[string]interface{})
+					results += serialize_map(tmp_map)
+				case []interface{}:
+					var tmp_arr []interface{}
+					tmp_arr = v.([]interface{})
+					results += serialize_array(tmp_arr)
+			*/
+		}
+		x += 1
+	}
+	results += "]"
+	return results
+}
+
+func serialize_map(msg_fields []*Field) string {
+	results := "{"
+	x := 0
+	for _, v := range msg_fields {
+		if x > 0 {
+			results += ", "
+		}
+		field_type := v.GetValueType()
+		switch field_type {
+		case Field_STRING:
+			j, _ := json.Marshal(v.ValueString[0])
+			k, _ := json.Marshal(v.Name)
+			results += fmt.Sprintf("%s: %s", string(k), string(j))
+		case Field_DOUBLE:
+			j, _ := json.Marshal(v.ValueDouble[0])
+			k, _ := json.Marshal(v.Name)
+			results += fmt.Sprintf("%s: %s", k, string(j))
+			// TODO: add all Field_* type defs here
+		default:
+			results += "<something_else_here>"
+
+		}
+		x += 1
+	}
+	results += "}"
+	return results
+}
+
+func (self *Message) MarshalJSON() (jsonBytes []byte, err error) {
+
+	str_ts := time.Unix(0, *self.Timestamp).Format(time.RFC3339Nano)
+
+	sample_json := fmt.Sprintf(`{"timestamp": "%s", "type": "%s", "logger": "%s", "severity": %d, "payload": "%s", "env_version": "%s", "metlog_pid": %d, "metlog_hostname": "%s", "fields": %s}`,
+		str_ts,
+		self.GetType(),
+		self.GetLogger(),
+		self.GetSeverity(),
+		self.GetPayload(),
+		self.GetEnvVersion(),
+		self.GetPid(),
+		self.GetHostname(),
+		serialize_map(self.Fields))
+
+	return []byte(sample_json), nil
+}
+
+func (self *Message) UnmarshalJSON(msgBytes []byte) error {
+	msgJson, err := simplejson.NewJson(msgBytes)
+	if err != nil {
+		return err
+	}
+
+	uuidString, _ := msgJson.Get("uuid").String()
+	u := uuid.Parse(uuidString)
+	self.SetUuid(u)
+
+	self.SetType(msgJson.Get("type").MustString())
+	timeStr := msgJson.Get("timestamp").MustString()
+	t, err := time.Parse(time.RFC3339Nano, timeStr)
+	if err != nil {
+		log.Printf("Timestamp parsing error: %s\n", err.Error())
+		return errors.New("invalid Timestamp")
+	}
+	self.SetTimestamp(t.UnixNano())
+	self.SetLogger(msgJson.Get("logger").MustString())
+	self.SetSeverity(int32(msgJson.Get("severity").MustInt()))
+	self.SetPayload(msgJson.Get("payload").MustString())
+	self.SetEnvVersion(msgJson.Get("env_version").MustString())
+	i, _ := msgJson.Get("metlog_pid").Int()
+	self.SetPid(int32(i))
+	self.SetHostname(msgJson.Get("metlog_hostname").MustString())
+	fields, _ := msgJson.Get("fields").Map()
+	err = flattenMap(fields, self, "")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func flattenMap(m map[string]interface{}, msg *Message, path string) error {
+	var childPath string
+	for k, v := range m {
+		if len(path) == 0 {
+			childPath = k
+		} else {
+			childPath = fmt.Sprintf("%s.%s", path, k)
+		}
+		err := flattenValue(v, msg, childPath)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func flattenArray(a []interface{}, msg *Message, path string) error {
+	if len(a) > 0 {
+		switch a[0].(type) {
+		case string, float64, bool:
+			f, _ := NewField(path, a[0], Field_RAW)
+			for _, v := range a[1:] {
+				err := f.AddValue(v)
+				if err != nil {
+					return err
+				}
+			}
+			msg.AddField(f)
+
+		default:
+			var childPath string
+			for i, v := range a {
+				childPath = fmt.Sprintf("%s.%d", path, i)
+				err := flattenValue(v, msg, childPath)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func flattenValue(v interface{}, msg *Message, path string) error {
+	switch v.(type) {
+	case string, float64, bool:
+		f, _ := NewField(path, v, Field_RAW)
+		msg.AddField(f)
+	case []interface{}:
+		err := flattenArray(v.([]interface{}), msg, path)
+		if err != nil {
+			return err
+		}
+	case map[string]interface{}:
+		err := flattenMap(v.(map[string]interface{}), msg, path)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("Path %s, unsupported value type: %T", path, v)
+	}
+	return nil
 }
