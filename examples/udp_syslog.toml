@@ -1,16 +1,17 @@
 [UdpInput]
-address = "127.0.0.1:5565"
+address = "127.0.0.1:2514"
+parser_type = "regexp"
+delimiter = "$"
 decoder = "syslog_sandbox"
 
 [syslog_sandbox]
 type = "SandboxDecoder"
 script_type = "lua"
-filename = "lua/syslog_decoder.lua"
+filename = "/Users/victorng/dev/heka/sandbox/lua/decoders/syslog_decoder.lua"
 timestamp_field = "syslog_ts"
 timestamp_layout = "Jan _2 15:04:05"
 timestamp_location = "America/Toronto"
 
 [LogOutput]
-message_matcher = "True"
+message_matcher = "TRUE"
 payload_only = false
-

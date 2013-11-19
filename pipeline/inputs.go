@@ -229,6 +229,7 @@ func networkPayloadParser(conn net.Conn,
 		record []byte
 	)
 	_, record, err = parser.Parse(conn)
+	fmt.Printf("Parsed a record from connection: [%s]\n", string(record))
 	if len(record) > 0 {
 		pack = <-ir.InChan()
 		pack.Message.SetUuid(uuid.NewRandom())
@@ -335,6 +336,8 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
 		}
 	}
+
+	// TODO: refactor out the parser crap here
 	if u.config.ParserType == "message.proto" {
 		mp := NewMessageProtoParser()
 		u.parser = mp

@@ -44,10 +44,11 @@ type SandboxDecoder struct {
 
 func (pd *SandboxDecoder) ConfigStruct() interface{} {
 	return &SandboxConfig{
-		ModuleDirectory:  pipeline.GetHekaConfigDir("lua_modules"),
-		MemoryLimit:      8 * 1024 * 1024,
-		InstructionLimit: 1e6,
-		OutputLimit:      63 * 1024,
+		ModuleDirectory:   pipeline.GetHekaConfigDir("lua_modules"),
+		MemoryLimit:       8 * 1024 * 1024,
+		InstructionLimit:  1e6,
+		OutputLimit:       63 * 1024,
+		TimestampLocation: "UTC",
 	}
 }
 
@@ -58,6 +59,10 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	s.sbc = config.(*SandboxConfig)
 	s.sbc.ScriptFilename = pipeline.GetHekaConfigDir(s.sbc.ScriptFilename)
 	s.sample = true
+
+	if s.sbc.TzLocation, err = time.LoadLocation(s.sbc.TimestampLocation); err != nil {
+		return fmt.Errorf("unknown TimestampLocation='%s', err=%s", s.sbc.TimestampLocation, err)
+	}
 
 	switch s.sbc.ScriptType {
 	case "lua":
@@ -117,10 +122,15 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	atomic.AddInt64(&s.processMessageCount, 1)
 
 	var startTime time.Time
+	var timestamp string
+	var f *message.Field
+	var ok bool
+
 	if s.sample {
 		startTime = time.Now()
 	}
 	retval := s.sb.ProcessMessage(s.pack)
+	fmt.Printf("Retval [%d]\n", retval)
 	if s.sample {
 		duration := time.Since(startTime).Nanoseconds()
 		s.reportLock.Lock()
@@ -137,6 +147,25 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		atomic.AddInt64(&s.processMessageFailures, 1)
 		err = fmt.Errorf("Failed parsing: %s", s.pack.Message.GetPayload())
 		return
+	}
+
+	if retval == 0 {
+		if s.sbc.TimestampField != "" {
+			f = pack.Message.FindFirstField(s.sbc.TimestampField)
+			if f != nil {
+				timestamp, ok = f.GetValue().(string)
+				if !ok {
+					return nil, fmt.Errorf("Can't coerce timestamp field into a string")
+				}
+				err = pipeline.DecodeTimestamp(pack, timestamp, s.sbc.TimestampLayout, s.sbc.TzLocation)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				err = fmt.Errorf("ERROR: Can't find timestamp from : [%s]\n", s.pack.Message.GetPayload())
+				return nil, err
+			}
+		}
 	}
 	packs = []*pipeline.PipelinePack{pack}
 	err = s.err

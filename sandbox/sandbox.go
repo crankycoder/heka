@@ -14,7 +14,10 @@
 
 package sandbox
 
-import "github.com/mozilla-services/heka/pipeline"
+import (
+	"github.com/mozilla-services/heka/pipeline"
+	"time"
+)
 
 const (
 	STATUS_UNKNOWN    = 0
@@ -58,4 +61,9 @@ type SandboxConfig struct {
 	OutputLimit      uint   `toml:"output_limit"`
 	Profile          bool
 	Config           map[string]interface{}
+
+	TimestampField    string `toml:"timestamp_field"`
+	TimestampLayout   string `toml:"timestamp_layout"`
+	TimestampLocation string `toml:"timestamp_location"`
+	TzLocation        *time.Location
 }
