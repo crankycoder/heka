@@ -22,8 +22,10 @@
 -- offset_min=0 (number)
 
 
-require("lpeg")
-require("rfc3339")
+local lpeg = require("lpeg")
+local os = require("os")
+local string = require("string")
+local rfc3339 = require("rfc3339")
 
 function addToSet(set, key)
     set[key] = true
@@ -47,7 +49,22 @@ local HOUR = (l.P"2" * l.R"03") + (l.R"01" * l.R"09") + (l.R"09")
 local MINUTE = l.R"05" * l.R"09"
 local SECOND =((l.R"05" * l.R"09" )+l.P"60") * (((l.P"."+l.P",")*l.R"09"^1)^-1)
 local TIME = HOUR * l.P":" * MINUTE * (l.P":" * SECOND)^-1
-local MONTH = ((l.P"Jan" * l.P"uary"^-1) + (l.P"Feb" * l.P"ruary"^-1) + (l.P"Mar" * l.P"ch"^-1) + (l.P"Apr" * l.P"il"^-1) + (l.P"May" * l.P""^-1) + (l.P"Jun" * l.P"e"^-1) + (l.P"Jul" * l.P"y"^-1) + (l.P"Aug" * l.P"ust"^-1) + (l.P"Sep" * l.P"tember"^-1) + (l.P"Oct" * l.P"ober"^-1) + (l.P"Nov" * l.P"ember"^-1) + (l.P"Dec" * l.P"embear"^-1))
+
+local JANUARY = (l.P"Jan" * l.P"uary"^-1)
+local FEBRUARY = (l.P"Feb" * l.P"ruary"^-1)
+local MARCH = (l.P"Mar" * l.P"ch"^-1)
+local APRIL = (l.P"Apr" * l.P"il"^-1)
+local MAY = (l.P"May" * l.P""^-1)
+local JUNE = (l.P"Jun" * l.P"e"^-1)
+local JULY = (l.P"Jul" * l.P"y"^-1)
+local AUGUST = (l.P"Aug" * l.P"ust"^-1)
+local SEPTEMBER = (l.P"Sep" * l.P"tember"^-1)
+local OCTOBER = (l.P"Oct" * l.P"ober"^-1)
+local NOVEMBER = (l.P"Nov" * l.P"ember"^-1)
+local DECEMBER = (l.P"Dec" * l.P"embear"^-1)
+
+local MONTH = (JANUARY+FEBRUARY+MARCH+APRIL+MAY+JUNE+JULY+AUGUST+SEPTEMBER+OCTOBER+NOVEMBER+DECEMBER)
+
 local MONTHDAY = ((l.P"3" * l.R"01") + (l.R"12" * l.R"09") + (l.P"0" * l.R"19"))
 local SYSLOGTIMESTAMP = MONTH * l.P" " * MONTHDAY * l.P" " * TIME
 local SYSLOGFACILITY = l.Cg(POSINT, "facility") * "." * l.Cg(POSINT, "priority")
@@ -107,7 +124,8 @@ function decode(payload)
         captures['syslog_ts'] = captures['syslog_timestamp']
         removeFromSet(captures, "syslog_timestamp")
     elseif setContains(keyset, "syslog_rfc3339") then
-        captures['syslog_ts'] = captures["syslog_rfc3339"]
+        captures['syslog_ts'] = captures['syslog_rfc3339']
+        t['Timestamp'] = rfc3339.time_ns(rfc3339.grammar:match(captures["syslog_rfc3339"]))
         removeFromSet(captures, "syslog_timestamp")
     end
 

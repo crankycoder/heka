@@ -131,7 +131,6 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		startTime = time.Now()
 	}
 	retval := s.sb.ProcessMessage(s.pack)
-	fmt.Printf("Retval [%d]\n", retval)
 	if s.sample {
 		duration := time.Since(startTime).Nanoseconds()
 		s.reportLock.Lock()
