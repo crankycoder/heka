@@ -258,6 +258,8 @@ func DecoderSpec(c gs.Context) {
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/syslog_decoder.lua"
 		conf.ScriptType = "lua"
+		conf.Config["data_source"] = "Payload"
+
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 
@@ -291,7 +293,19 @@ func DecoderSpec(c gs.Context) {
 			f = pack.Message.FindFirstField("syslog_message")
 			c.Expect(f, gs.Not(gs.IsNil))
 			c.Expect(f.GetValue(), gs.Equals, "Process unable to create connection because the sandbox denied the right to lookup com.apple.coreservices.launchservicesd and so this process cannot talk to launchservicesd. : LSXPCClient.cp #426 ___ZN26LSClientToServerConnection21setupServerConnectionEiPK14__CFDictionary_block_invoke() q=com.apple.main-thread")
+		})
 
+		c.Specify("defaults to using Payload for the data source", func() {
+			conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+			conf.ScriptFilename = "../lua/decoders/syslog_decoder.lua"
+			conf.ScriptType = "lua"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(syslog_rfc3339)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
 		})
 
 		c.Specify("decodes old style dates in syslog", func() {

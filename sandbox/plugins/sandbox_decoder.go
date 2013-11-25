@@ -49,6 +49,7 @@ func (pd *SandboxDecoder) ConfigStruct() interface{} {
 		InstructionLimit:  1e6,
 		OutputLimit:       63 * 1024,
 		TimestampLocation: "UTC",
+		Config:            make(map[string]interface{}),
 	}
 }
 

@@ -2,28 +2,28 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
--- Original grok filters
--- POSINT \b(?:[0-9]+)\b
--- GREEDYDATA .*
--- HOUR (?:2[0123]|[01][0-9])
--- MINUTE (?:[0-5][0-9])
--- SECOND (?:(?:[0-5][0-9]|60)(?:[.,][0-9]+)?)
--- TIME (?!<[0-9])%{HOUR}:%{MINUTE}(?::%{SECOND})(?![0-9])
--- MONTH \b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b
--- MONTHDAY (?:3[01]|[1-2]?[0-9]|0?[1-9])
--- SYSLOGTIMESTAMP %{MONTH} +%{MONTHDAY} %{TIME}
--- SYSLOGFACILITY <%{POSINT:facility}.%{POSINT:priority}>
--- IP (?<![0-9])(?:(?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](?:25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))(?![0-9])
--- HOSTNAME \b(?:[0-9A-Za-z][0-9A-Za-z-]{0,62})(?:\.(?:[0-9A-Za-z][0-9A-Za-z-]{0,62}))*(\.?|\b)
--- IPORHOST (?:%{HOSTNAME}|%{IP})
--- SYSLOGHOST %{IPORHOST}
--- PROG (?:[\w._/-]+)
--- SYSLOGPROG %{PROG:program}(?:\[%{POSINT:pid}\])?
--- SYSLOGBASE %{SYSLOGTIMESTAMP:timestamp} (?:%{SYSLOGFACILITY} )?%{SYSLOGHOST:logsource} %{SYSLOGPROG}:
--- 
--- Input 
+-- Valid sample input
+---------------------
+-- "Oct 30 17:09:26 somehost.network Google Chrome Helper[36789] <Error>: Process unable to create connection because the sandbox denied the right to lookup com.apple.coreservices.launchservicesd and so this process cannot talk to launchservicesd. : LSXPCClient.cp #426 ___ZN26LSClientToServerConnection21setupServerConnectionEiPK14__CFDictionary_block_invoke() q=com.apple.main-thread"
+-- "1985-04-12T23:20:50.52Z somehost.network Google Chrome Helper[36789] <Error>: Process unable to create connection because the sandbox denied the right to lookup com.apple.coreservices.launchservicesd and so this process cannot talk to launchservicesd. : LSXPCClient.cp #426 ___ZN26LSClientToServerConnection21setupServerConnectionEiPK14__CFDictionary_block_invoke() q=com.apple.main-thread"
+
+-- table output
+---------------
+-- hour=23 (string)
+-- min=23 (string)
+-- year=1999 (string)
+-- month=05 (string)
+-- day=05 (string)
+-- sec=59 (string)
+---- conditional table members
+-- sec_frac=0.217 (number)
+-- offset_sign=- (string)
+-- offset_hour=7 (number)
+-- offset_min=0 (number)
+
 
 require("lpeg")
+require("rfc3339")
 
 function addToSet(set, key)
     set[key] = true
@@ -84,7 +84,7 @@ function decode(payload)
     local keyset = {}
     local captures = grammar:match(payload)
     local t = {}
-    t["Payload"] = payload
+    t["data_source"] = payload
 
     if captures == nil then
         -- Return the empty table if parsing went badly
@@ -116,9 +116,14 @@ function decode(payload)
 end
 
 
-function process_message()
-    local payload = read_message("Payload")
+local data_src = read_config("data_source")
 
+if data_src == nil then
+    data_src = "Payload"
+end
+
+function process_message()
+    local payload = read_message(data_src)
     local t = decode(payload)
     if t then
         inject_message(t)
