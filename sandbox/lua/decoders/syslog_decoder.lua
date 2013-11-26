@@ -82,9 +82,8 @@ local TZ_UTC = l.P"Z"
 local TZ_OFFSET = (l.S"+-"^-1 * HOUR * ":" * MINUTE)
 local TZ = TZ_UTC + TZ_OFFSET
 local year_int = l.R"09"* l.R"09"* l.R"09"* l.R"09"
-local RFC_3339 = l.Cg(year_int * "-" * month_int * "-" * day_int * "T" * HOUR * l.P":" * MINUTE * l.P":" * SECOND * (TZ)^-1, "syslog_rfc3339")
+local RFC_3339 = l.Cg(rfc3339.grammar, "syslog_rfc3339")
 ---
-
 
 local SYSLOGBASE = (l.Cg(SYSLOGTIMESTAMP, "syslog_timestamp") + RFC_3339) * l.P" " * (SYSLOGFACILITY * l.P" ")^-1 * l.Cg(IPORHOST, "logsource") * l.P" " * SYSLOGPROG 
 
